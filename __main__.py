@@ -1,9 +1,8 @@
-import os
 import socket
 
 from client.request import Request
 from client import errors
-from client import do_request
+from client.do_request import do_request
 import argparse
 import sys
 
@@ -92,7 +91,7 @@ args = parser.parse_args()
 request = prepare_request(args)
 
 try:
-    response = httpclient.do_request(request, 1000, 10)
+    response = do_request(request, 1000, 10)
     show_response(response, args)
 except errors.MaxDirectionsError:
     sys.stdout.write(errors.MaxDirectionsError.message)
