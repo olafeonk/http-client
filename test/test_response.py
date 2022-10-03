@@ -26,7 +26,7 @@ def data():
 
 
 def test_response_parse(data):
-    response = Response().parse(data)
+    response = Response().parse(data)[0]
 
     assert response.body == (
         '<html>\r\n'

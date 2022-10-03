@@ -21,6 +21,7 @@ def test_set_method_with_url():
                          'Reference': 'blablacar.com'})
     request.set_header(header='User-Agent', value='Yandex')
     request.set_method('post')
+    request.set_current_path()
 
     expected_bytes_request: str = (
         'POST /feed HTTP/1.1\r\n'
@@ -39,12 +40,13 @@ def test_set_method_with_url():
 def test_methods_with_host():
     request = Request()
     request.set_host('vk.com')
-    request.set_path('/feed/ru')
+    request.set_path(['/feed/ru'])
     request.set_body('Hello')
     request.set_headers({'Cookie': '1234',
                          'Reference': 'blablacar.com'})
     request.set_header(header='User-Agent', value='Yandex')
     request.set_method('delete')
+    request.set_current_path()
 
     expected_bytes_request: str = (
         'DELETE /feed/ru HTTP/1.1\r\n'

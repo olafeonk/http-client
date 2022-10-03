@@ -1,11 +1,11 @@
-import os
 import socket
 
 from client.request import Request
 from client import errors
-from client import do_request
+from client.do_request import do_request
 import argparse
 import sys
+import base64
 
 from client.response import Response
 
@@ -26,6 +26,7 @@ parser.add_argument("-m", "--method",
 parser.add_argument("-u", "--url", type=str, help="Contains URL")
 parser.add_argument("-c", "--cookie", type=str, help="add cookie")
 parser.add_argument("-O", "--output", type=str, help="print answer in file")
+parser.add_argument("-k", "--keepalive", action='store_true', help="support keepalive")
 parser.add_argument(
     "-H",
     "--headers",
@@ -34,13 +35,15 @@ parser.add_argument(
     help="add headers in request",
     dest="my_headers",
 )
-parser.add_argument("-t", "--timeout", type=str, help="reset timeout")
+parser.add_argument("-U", "--user", help='basic authorization example --user user:password')
+parser.add_argument("-t", "--timeout", type=int, default=5, help="reset timeout")
 parser.add_argument("-l", "--host", type=str,
                     help="custom host, default value is None")
 parser.add_argument(
     "-P",
     "--path",
     type=str,
+    nargs='*',
     help="setup path, should start with </>, haven't default path",
 )
 
@@ -67,32 +70,40 @@ def prepare_request(arguments: argparse.Namespace) -> Request:
         new_request.set_headers(headers)
     if arguments.cookie:
         new_request.set_header('Cookie', arguments.cookie)
+    if arguments.keepalive:
+        new_request.set_header('Connection', 'Keep-Alive')
+        new_request.set_header('Keep-Alive', f'timeout={arguments.timeout}')
     if arguments.data:
         new_request.set_body(arguments.data)
+    if arguments.user:
+        new_request.set_header('Authorization', f'Basic {base64.b64decode(bytes(arguments.user))}')
+    new_request.set_current_path()
     return new_request
 
 
 def show_response(
-    recipient_response: Response,
+    recipient_responses: list[Response],
     user_args: argparse.Namespace,
 ) -> None:
-    if user_args.output:
-        with open(args.output, 'bw') as file:
-            file.write(response.body.encode(response.charset))
-    else:
-        answer = [
-            f'{bytes(recipient_response).decode()}',
-            '\r\n',
-            recipient_response.body,
-        ]
-        sys.stdout.write("\r\n".join(answer))
+    for recipient_response in recipient_responses:
+        if user_args.output:
+            with open(args.output, 'bw') as file:
+                file.write(recipient_response.body.encode(recipient_response.charset))
+        else:
+            answer = [
+                recipient_response.body,
+            ]
+            sys.stdout.write("\r\n".join(answer))
+        if user_args.output:
+            file.write(b'\n')
+        else:
+            sys.stdout.write('\n')
 
 
 args = parser.parse_args()
 request = prepare_request(args)
-
 try:
-    response = httpclient.do_request(request, 1000, 10)
+    response = do_request(request, args.timeout, 10)
     show_response(response, args)
 except errors.MaxDirectionsError:
     sys.stdout.write(errors.MaxDirectionsError.message)

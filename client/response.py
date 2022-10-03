@@ -2,6 +2,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+CRLF: str = '\r\n'
+
 
 @dataclass
 class Response:
@@ -19,15 +21,16 @@ class Response:
         return '\r\b'.join(response).encode()
 
     @classmethod
-    def parse(cls: Response, data: bytes) -> Response:
+    def parse(cls: Response, data: bytes) -> list[Response]:
         response = data.decode("UTF-8")
         code = (re.search(r" \d* ", response)).group(0)
         protocol = (re.search(r'[\d.]* ', response)).group(0)
-        head, body = response.split("\r\n\r\n")
+        head = response.split(f"{CRLF}{CRLF}")[0]
+
         charset = "utf-8"
         headers = {}
         location = ""
-        for string in head.split("\r\n"):
+        for string in head.split(f"{CRLF}"):
             search_headers = re.search(r'(?P<header>[a-zA-Z-]*): '
                                        r'' r'(?P<value>[0-9\s\w,.;=/:-]*)', string)
             if search_headers is not None:
@@ -39,11 +42,57 @@ class Response:
                     charset = 'utf-8' if search_charset is None else search_charset.group("charset")
                 if search_headers.group("header") == "Location" or search_headers.group("header") == "location":
                     location = search_headers.group("value")
-        return cls(
-            body=body,
-            charset=charset,
-            code=int(code),
-            location=location,
-            protocol=float(protocol),
-            headers=headers,
-        )
+        if headers.get('Transfer-Encoding') != 'chunked':
+            body = response[response.find(f'{CRLF}{CRLF}') + 4:].encode('utf-8')[:int(headers.get('Content-Length'))]
+            curr_response = response[response.find(f'{CRLF}{CRLF}') + 4 + len(body.decode('utf-8')):].encode('utf-8')
+            if curr_response:
+                responses = [cls(
+                    body=body.decode('utf-8'),
+                    charset=charset,
+                    code=int(code),
+                    location=location,
+                    protocol=float(protocol),
+                    headers=headers,
+                )]
+                responses.extend(cls.parse(curr_response))
+                return responses
+            return [cls(
+                body=body.decode('utf-8'),
+                charset=charset,
+                code=int(code),
+                location=location,
+                protocol=float(protocol),
+                headers=headers,
+            )]
+        body = []
+
+        raw_body = response[response.find(f"{CRLF}{CRLF}") + 4:]
+        ind = 0
+        while True:
+            chunk_length = int(raw_body[ind:ind + raw_body[ind:].find(CRLF)], 16)
+            ind += raw_body[ind:].find(CRLF) + 2
+            for _ in range(chunk_length):
+                body.append(raw_body[ind])
+                ind += 1
+            ind += 2
+            if chunk_length == 0:
+                curr_response = raw_body[ind:]
+                if curr_response:
+                    responses = [cls(
+                        body=''.join(body),
+                        charset=charset,
+                        code=int(code),
+                        location=location,
+                        protocol=float(protocol),
+                        headers=headers,
+                    )]
+                    responses.extend(cls.parse(curr_response.encode('utf-8')))
+                    return responses
+                return [cls(
+                    body=''.join(body),
+                    charset=charset,
+                    code=int(code),
+                    location=location,
+                    protocol=float(protocol),
+                    headers=headers,
+                )]
