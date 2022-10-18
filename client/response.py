@@ -64,22 +64,20 @@ class Response:
                 protocol=float(protocol),
                 headers=headers,
             )]
-        body = []
-
-        raw_body = response[response.find(f"{CRLF}{CRLF}") + 4:]
+        body = b''
+        raw_body = response[response.find(f"{CRLF}{CRLF}") + 4:].encode('utf-8')
         ind = 0
         while True:
-            chunk_length = int(raw_body[ind:ind + raw_body[ind:].find(CRLF)], 16)
-            ind += raw_body[ind:].find(CRLF) + 2
-            for _ in range(chunk_length):
-                body.append(raw_body[ind])
-                ind += 1
+            chunk_length = int(raw_body[ind:ind + raw_body[ind:].find(CRLF.encode('utf-8'))], 16)
+            ind += raw_body[ind:].find(CRLF.encode('utf-8')) + 2
+            body += raw_body[ind: ind + chunk_length]
+            ind += chunk_length
             ind += 2
             if chunk_length == 0:
                 curr_response = raw_body[ind:]
                 if curr_response:
                     responses = [cls(
-                        body=''.join(body),
+                        body=body.decode('utf-8'),
                         charset=charset,
                         code=int(code),
                         location=location,
@@ -89,7 +87,7 @@ class Response:
                     responses.extend(cls.parse(curr_response.encode('utf-8')))
                     return responses
                 return [cls(
-                    body=''.join(body),
+                    body=body.decode('utf-8'),
                     charset=charset,
                     code=int(code),
                     location=location,
