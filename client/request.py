@@ -53,7 +53,7 @@ class Request:
     def set_method(self: Request, method: str) -> None:
         try:
             for req_type in Method:
-                if req_type.value.lower() == method:
+                if req_type.value.lower() == method.lower():
                     self.method = req_type
                     return
             raise errors.IncorrectMethodTypeError()
